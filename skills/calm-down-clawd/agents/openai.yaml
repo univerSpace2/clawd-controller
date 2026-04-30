@@ -1,0 +1,4 @@
+interface:
+  display_name: "Calm Down Clawd"
+  short_description: "Guide Claude Code through degraded model behavior"
+  default_prompt: "Use $calm-down-clawd to work through this coding task with guardrails for Opus 4.7 regressions."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Clawd Controller"
+  short_description: "Write robust Claude Code task prompts"
+  default_prompt: "Use $clawd-controller to turn my task into a Claude Code prompt that avoids Opus 4.7 failure modes."
