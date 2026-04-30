@@ -9,19 +9,13 @@ Two skills for managing Claude Opus 4.7 / Claude Code work with stricter scope, 
 
 ## Install
 
-Install both skills into Codex:
+Install both skills through Codex's skill installer:
 
 ```bash
 python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
   --repo univerSpace2/clawd-controller \
-  --path skills/clawd-controller \
-  --path skills/calm-down-clawd
-```
-
-Or use the helper script:
-
-```bash
-./install.sh
+  --method git \
+  --path skills/clawd-controller skills/calm-down-clawd
 ```
 
 Restart Codex after installing so the new skills are picked up.
@@ -31,11 +25,13 @@ Restart Codex after installing so the new skills are picked up.
 ```bash
 python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
   --repo univerSpace2/clawd-controller \
+  --method git \
   --path skills/clawd-controller
 ```
 
 ```bash
 python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
   --repo univerSpace2/clawd-controller \
+  --method git \
   --path skills/calm-down-clawd
 ```
