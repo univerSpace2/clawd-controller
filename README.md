@@ -9,29 +9,44 @@ Two skills for managing Claude Opus 4.7 / Claude Code work with stricter scope, 
 
 ## Install
 
-Install both skills through Codex's skill installer:
+List the skills with the skills.sh CLI:
 
 ```bash
-python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
-  --repo univerSpace2/clawd-controller \
-  --method git \
-  --path skills/clawd-controller skills/calm-down-clawd
+npx --yes skills add univerSpace2/clawd-controller --list
 ```
 
-Restart Codex after installing so the new skills are picked up.
-
-## Install One Skill
+Install the recommended setup globally:
 
 ```bash
-python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
-  --repo univerSpace2/clawd-controller \
-  --method git \
-  --path skills/clawd-controller
+npx --yes skills add univerSpace2/clawd-controller \
+  --skill clawd-controller \
+  --agent codex \
+  --global \
+  --yes
 ```
 
 ```bash
-python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
-  --repo univerSpace2/clawd-controller \
-  --method git \
-  --path skills/calm-down-clawd
+npx --yes skills add univerSpace2/clawd-controller \
+  --skill calm-down-clawd \
+  --agent claude-code \
+  --global \
+  --yes
 ```
+
+Restart Codex and Claude Code after installing so the new skills are picked up.
+
+## Install Both Everywhere
+
+To install both skills into both Codex and Claude Code:
+
+```bash
+npx --yes skills add univerSpace2/clawd-controller \
+  --skill clawd-controller \
+  --skill calm-down-clawd \
+  --agent codex \
+  --agent claude-code \
+  --global \
+  --yes
+```
+
+Omit `--global` to install into the current project instead of your user-level agent directories.
