@@ -1,56 +1,41 @@
 ---
 name: calm-down-clawd
-description: Stabilize Claude Code execution on Opus 4.7 by enforcing scoped planning, requirement tracking, evidence-first debugging, minimal edits, and verification discipline. Use when Claude Code is asked to implement, debug, refactor, review, or modify code and the user wants to compensate for Opus 4.7-style failure modes such as overreach, missed instructions, hallucinated causes, long-context mistakes, or incomplete final reporting.
+description: Execution guardrails for Claude Code during coding tasks. Enforces an inspect-first, minimal-change workflow with requirement tracking, evidence-based debugging, honest verification reporting, diff review, and stop conditions. Use when implementing, debugging, refactoring, or reviewing code to prevent common coding-agent failures such as scope creep, instruction drift, hallucinated root causes, and unverified claims.
 ---
 
 # Calm Down Clawd
 
 ## Overview
 
-Use this skill while performing the coding task, not merely while writing a plan. It adds execution guardrails for Claude Code when the model may drift from instructions, overbuild, invent unsupported causes, or forget requirements under long context.
+Use this skill during every coding task in a repository. It is an execution guardrail, not a planning tool.
 
-## Core Rule
-
-Preserve the user's requested outcome over model momentum. Inspect first, change less, verify more, and report honestly.
+Core rule: Do not optimize for speed or appearing thorough. Optimize for making the smallest correct change with honest verification.
 
 ## Execution Workflow
 
 ### 1. Build a Requirement Ledger
 
-Before editing, rewrite the task as checkable requirements:
-
-- Functional requirements.
-- Non-functional requirements such as performance, styling, compatibility, or security.
-- Non-goals and forbidden changes.
-- Verification expectations.
-
-Keep the ledger short. For small tasks, this can be a private checklist. For complex tasks, include it in the plan you show the user.
+- Rewrite the task as checkable requirements.
+- Include non-goals and forbidden changes.
+- Include verification expectations.
+- Keep it short; use a private checklist for small tasks and a visible plan for complex tasks.
 
 ### 2. Inspect Before Editing
 
-Use repository evidence before making claims or changes:
-
-- Search and read relevant files, tests, config, and local docs.
+- Inspect relevant files before editing.
+- Read tests, config, local docs, and nearby conventions.
 - Identify the local architecture and naming conventions.
 - Locate existing helpers before adding new ones.
 - For bugs, reproduce the symptom or find direct evidence in tests, logs, traces, or code paths.
-- For unfamiliar libraries, use local docs or authoritative docs before relying on memory.
-
-Do not edit until the likely write set is known. If the task is trivial, the write set can be implicit after opening the target file.
+- Do not edit until the likely write set is known.
 
 ### 3. State a Small Plan
 
-For non-trivial work, state:
-
-- What will change.
-- What will not change.
-- How the result will be verified.
-
-Keep the plan concrete and short. Avoid speculative architecture unless the task is architectural.
+- For non-trivial work, state what will change, what will not change, and how it will be verified.
+- Keep the plan concrete and short.
+- Avoid speculative architecture unless the task is architectural.
 
 ### 4. Make the Smallest Coherent Patch
-
-During implementation:
 
 - Follow existing code style, module boundaries, naming, and test patterns.
 - Prefer modifying existing paths over introducing new abstractions.
@@ -61,22 +46,32 @@ During implementation:
 
 ### 5. Verify Against the Ledger
 
-Run the narrowest meaningful checks first:
-
-- Unit or focused tests for touched behavior.
-- Typecheck, lint, build, or integration tests when the changed surface justifies them.
-- Manual browser or CLI checks for user-facing behavior when tests do not cover it.
-
-If a command fails, inspect whether the failure is related. Do not hide failures. If a command cannot run because of permissions, missing dependencies, or unavailable services, say exactly that.
+- Run the narrowest meaningful checks first.
+- Use unit or focused tests for touched behavior.
+- Use typecheck, lint, build, integration, browser, or CLI checks when the changed surface justifies them.
+- If a command fails, inspect whether the failure is related.
+- If a command cannot run because of permissions, missing dependencies, or unavailable services, say exactly that.
 
 ### 6. Review the Diff
-
-Before final response:
 
 - Compare the diff to the requirement ledger.
 - Check that no unrelated files or behavior changed.
 - Check that final wording does not claim unrun tests passed.
 - Check for accidental secrets, debug prints, temporary code, and stale comments.
+
+## Checkpoints
+
+### Before editing, confirm internally:
+- What exact requirement am I satisfying?
+- Which files are in the write set?
+- What is the smallest safe change?
+- What must NOT be changed?
+
+### Before final response, confirm:
+- Did I satisfy each item in the requirement ledger?
+- Did I review the diff against the ledger?
+- What verification did I actually run and see results for?
+- What remains unverified, and did I say so?
 
 ## Anti-Failure Guardrails
 
@@ -94,6 +89,8 @@ When tempted to expand scope, ask:
 
 If the answer is no, do not include it.
 
+Example of overreach: The task is "fix the login redirect bug." You notice date formatting is inconsistent across the codebase. Do not fix the date formatting — it is not in the requirement ledger.
+
 ### Avoid Hallucinated Root Causes
 
 For debugging, use this order:
@@ -105,6 +102,7 @@ For debugging, use this order:
 5. Regression check.
 
 Never present a cause as fact until evidence supports it.
+Use hedging language ("likely", "appears to be", "evidence suggests") when certainty is partial. State the specific evidence that supports each claim.
 
 ### Avoid Long-Context Mistakes
 
@@ -114,6 +112,8 @@ For large repositories or long conversations:
 - Prefer file paths, symbols, and commands copied from the repo over remembered names.
 - Summarize only stable facts; re-check volatile details.
 - At the end, re-open the requirement ledger and verify every item.
+
+Re-read a file before editing it if more than a few tool calls have passed since you last opened it. Prefer file paths and symbol names copied from tool output over remembered names.
 
 ### Avoid Token Burn
 
@@ -131,11 +131,26 @@ Stop and ask the user, or report a blocker, when:
 
 ## Final Response Contract
 
-End with a concise report:
+End every task with this structure:
 
-- Changed files and what changed.
-- Requirement ledger status.
-- Verification commands and results.
-- Known residual risk or blocker.
+### Files Changed
+- `path/to/file` — what changed (one line per file)
 
-Do not include generic reassurance. Do not mention tests as passing unless they were actually run.
+### Requirement Ledger
+| # | Requirement | Status | Evidence |
+|---|------------|--------|----------|
+| 1 | ...        | ✅/❌/⏸ | test output, file ref, or "not verified" |
+
+### Verification
+- `<command actually run>` → `<actual output or summary>`
+- Or: `Not run: <specific reason>`
+- Or: `Failed: <command> — <failure summary>`
+
+### Residual Risk
+- "None" or a specific, concrete concern.
+
+Rules:
+- Never claim a test, build, lint, or typecheck passed unless you ran it and saw the result.
+- Never write "all tests pass" without showing which command produced that result.
+- If verification was not run, say "Not run" with the reason. Do not omit it silently.
+- Do not include generic reassurance such as "everything looks good" or "the code is clean."

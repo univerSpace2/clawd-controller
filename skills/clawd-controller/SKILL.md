@@ -1,13 +1,15 @@
 ---
 name: clawd-controller
-description: Create disciplined Claude Code prompts from a user's task so Codex can act as an Opus 4.7 agent manager. Use when the user wants Codex to write, refine, or structure instructions for Claude Code, especially to avoid Opus 4.7-style regressions such as instruction drift, overreach, hallucinated root causes, incomplete requirement tracking, long-context misses, or excessive token burn.
+description: Convert a user's coding request into a scoped Claude Code task prompt. Use in Codex when preparing implementation instructions for Claude Code. Creates a structured brief with a requirement ledger, inspection instructions, allowed write scope, verification plan, stop conditions, and final response contract to reduce common coding-agent failures such as requirement drift, overreach, hallucinated root causes, and unverified claims.
 ---
 
 # Clawd Controller
 
 ## Overview
 
-Use this skill to turn a user's raw task into a Claude Code prompt with explicit scope, evidence requirements, checkpoints, and verification. The output is a prompt for Claude Code, not an implementation plan for Codex to execute locally unless the user asks Codex to do the work itself.
+Use this skill to turn a user's raw coding request into a paste-ready prompt for Claude Code. The prompt should give Claude Code explicit scope, a requirement ledger, inspection instructions, boundaries, verification expectations, stop conditions, and a final response contract.
+
+This skill is for Codex-side prompt preparation. Codex should not modify the repository while using this skill unless the user directly asks Codex to do the implementation work itself.
 
 ## Operating Rule
 
@@ -17,6 +19,13 @@ Never send Claude Code a vague instruction like "fix this" or "implement X" by i
 
 ## Prompt-Building Workflow
 
+0. Classify the task.
+   Determine the task type and scale before building the prompt:
+   - Quick fix (1-3 files, clear symptom): Lightweight prompt. Skip the plan phase. Short ledger.
+   - Standard task (known scope, testable outcome): Full prompt with all sections.
+   - Exploratory (unclear scope or root cause): Split into an investigation prompt and a separate implementation prompt. Do not combine "find the problem" and "fix it" into one prompt.
+   Match the prompt weight to the task scale. Do not wrap a one-line fix in a 200-word control structure.
+
 1. Extract the real task.
    Identify the objective, the expected artifact or behavior, the repository area, non-goals, and the user's tolerance for broad changes. If a required fact is missing but can be discovered from the repo, instruct Claude Code to discover it. Ask the user only when a wrong assumption would be costly.
 
@@ -24,13 +33,13 @@ Never send Claude Code a vague instruction like "fix this" or "implement X" by i
    List each requirement as a checkable item. Include negative requirements such as "do not refactor unrelated modules" and "do not change public API unless necessary."
 
 3. Add an inspection phase.
-   Require Claude Code to inspect relevant files, tests, and conventions before proposing edits. For debugging, require reproduction or evidence before any fix.
+   Instruct Claude Code to inspect relevant files, tests, and conventions before proposing edits. For debugging, include a requirement to gather reproduction evidence or direct code evidence before any fix.
 
 4. Add scope boundaries.
-   Name likely allowed paths when known. When unknown, require Claude Code to state the intended write set before editing. Include "do not touch unrelated files" and "do not opportunistically modernize, rename, or reformat."
+   Name likely allowed paths when known. When unknown, instruct Claude Code to state the intended write set before editing. Include prompt language that separates allowed paths from forbidden areas and unrelated work.
 
 5. Add anti-regression guardrails.
-   Address the common Opus 4.7 failure modes directly: preserve all requirements, avoid overbuilding, do not invent causes, keep changes minimal, verify with tests, and stop when evidence contradicts the plan.
+   Address common coding-agent failure modes. Include in the prompt: preserve all requirements, avoid overbuilding, do not invent causes, keep changes minimal, verify with actual checks, and stop when evidence contradicts the plan.
 
 6. Add checkpoints.
    For small tasks, one checkpoint before editing is enough. For broad tasks, require a short plan, then implementation, then a verification summary. Do not require excessive ceremony for simple changes.
@@ -56,96 +65,116 @@ Every generated Claude Code prompt should include these sections unless the user
 Use this as the default shape:
 
 ```text
-You are Claude Code working in an existing repository. Treat this as a scoped engineering task, not an open-ended rewrite.
+You are Claude Code working in this repository. Treat this as a scoped engineering task.
 
 Task:
 <one-paragraph concrete objective>
 
-Requirements ledger:
-1. <checkable requirement>
-2. <checkable requirement>
-3. <negative requirement / non-goal>
+Requirement ledger:
+- [ ] <checkable requirement>
+- [ ] <checkable requirement>
+- [ ] <negative requirement / non-goal>
 
-Before editing:
-1. Inspect the relevant files and tests.
-2. Identify the current behavior and the smallest likely write set.
-3. If this is a bug, establish evidence for the root cause before changing code.
-4. If the requirements conflict or a key assumption cannot be checked locally, stop and ask.
+Context to inspect first:
+- <file, test, config, or command to examine before editing>
+- <for bugs: reproduction evidence or direct symptom location>
 
-Implementation rules:
-- Preserve every item in the requirements ledger; do not satisfy one by dropping another.
-- Keep the patch minimal and aligned with existing local patterns.
-- Do not refactor, rename, reformat, upgrade dependencies, or change public behavior unless required for the task.
-- Do not invent root causes, APIs, files, commands, or test results.
-- Make one coherent change set, then review the diff against the ledger.
+Allowed write scope:
+- <specific paths or modules, or "state write set before editing">
+
+Do not change:
+- <explicitly forbidden areas, files, or behaviors>
 
 Verification:
-- Run the most relevant focused checks first: <known command or "discover the existing test command">.
-- Run broader checks only if the changed surface justifies it.
+- <specific test command or "discover the project's test command">
 - If a check cannot be run, say exactly why.
 
+Stop conditions:
+- Stop and ask if requirements conflict or scope becomes unclear.
+- Stop if the bug cannot be reproduced and no evidence supports a fix.
+- Stop if credentials, network, or paid services are needed.
+
 Final response:
-- List changed files.
-- Report each requirement as done / not done / blocked.
-- Include verification commands and results.
-- Mention residual risks or follow-up only when real.
+| File | What changed |
+|------|-------------|
+| ...  | ...         |
+
+| # | Requirement | Status | Evidence |
+|---|------------|--------|----------|
+| 1 | ...        | ✅/❌/⏸ | ...     |
+
+Verification performed:
+- `<command>` → <actual result>
+- Or: "Not run: <reason>"
+
+Residual risk: <"None" or specific concern>
 ```
 
 ## Prompt Variants
 
 ### Bug Fix
 
-Add this block:
+For bug-fix tasks, add to the prompt:
 
 ```text
 Bug-fix discipline:
-- Reproduce or locate direct evidence before fixing.
-- State the suspected cause only after evidence supports it.
-- Prefer the smallest fix that addresses the cause.
-- Add or update a regression test when the project has a practical test surface.
+- State observed symptom and reproduction evidence before proposing a cause.
+- Do not state a root cause as fact without supporting evidence from code, logs, or tests.
+- Prefer the smallest fix that addresses the evidenced cause.
+- Add a regression test if the project has a practical test surface.
 ```
 
 ### Feature Work
 
-Add this block:
+For feature tasks, add to the prompt:
 
 ```text
 Feature discipline:
-- Match existing architecture, naming, state management, styling, and test style.
 - Implement only the user-visible behavior requested.
-- Include expected empty, loading, error, and edge states only when they are part of this feature's natural workflow.
+- Match existing architecture, naming, state management, and test style.
+- Include error/empty/loading states only when part of this feature's natural workflow.
+- Note any API or data contract changes explicitly.
 ```
 
 ### Large or Risky Refactor
 
-Add this block:
+For refactor tasks, add to the prompt:
 
 ```text
 Refactor discipline:
-- First map current dependencies and behavior.
-- Split the work into safe slices.
+- Map current dependencies and behavior before changing anything.
 - Preserve public contracts unless the task explicitly changes them.
-- After each slice, run the narrowest meaningful verification before continuing.
+- Split into safe slices; verify after each slice.
+- No opportunistic cleanup outside the stated scope.
 ```
 
 ### Long-Context Repository Task
 
-Add this block:
+For long-context tasks, add to the prompt:
 
 ```text
 Long-context discipline:
-- Build a short working map of relevant files before editing.
-- Re-check exact names, signatures, and requirements before using them.
-- Do not rely on memory for file contents that can be reopened.
-- Before finalizing, compare the diff against the original requirements ledger.
+- Build a short file map of relevant modules before editing.
+- Re-read file contents before editing if more than a few tool calls have passed since last read.
+- Re-check the requirement ledger before writing the final response.
+- Stop if context uncertainty becomes high; ask rather than guess.
 ```
+
+## Common Mistakes to Avoid in Generated Prompts
+
+Do not generate prompts that:
+- Say "fix this" or "implement X" without scope, ledger, or verification.
+- Include execution rules that duplicate what Claude Code's own guardrail skill already enforces (inspect first, minimal patch, honest reporting). Focus on task-specific context instead.
+- Combine investigation and implementation into one prompt when the root cause is unknown. Split them.
+- Require excessive ceremony for trivial changes (e.g., a full requirement ledger for a typo fix).
+- Specify verification commands that do not exist in the project. Use "discover the project's test command" when unsure.
 
 ## Manager Output Format
 
 When responding to the user, provide:
 
-1. A short note explaining any important assumptions.
+1. Task classification (quick fix / standard / exploratory) and any important assumptions, in 1-2 sentences.
 2. A ready-to-paste Claude Code prompt in a fenced `text` block.
-3. Optional tuning knobs only if useful, such as "make this stricter", "allow broader refactor", or "force tests first."
+3. Optional tuning knobs only if useful: "make this stricter", "allow broader refactor", "split into two prompts", "force tests first."
 
-Do not include a long essay before the prompt. The goal is to hand the user an operational prompt they can paste into Claude Code.
+Do not write a long essay before the prompt. The goal is a paste-ready operational prompt.
